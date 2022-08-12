@@ -1,0 +1,56 @@
+<html>
+
+<head>
+    <link href="app.css" type="text/css" rel="stylesheet" />
+    <script src="app.js"></script>
+</head>
+
+<body>
+    <canvas id="spectrolizer-canvas" width="500px" height="360px"></canvas>
+    <section>
+        <input type="text" id="keyer" />
+        <button id="dit-button">dit</button>
+        <button id="dah-button">dah</button>
+    </section>
+    <section>
+        <h1>Settings</h1>
+        <label for="volume-range">Volume</label>
+        <input type="range" id="volume-range" min="0" max="2" value="1" step="0.01" />
+        <label for="panner-range">Panner</label>
+        <input type="range" id="panner-range" min="-1" max="1" value="0" step="0.01">
+        <label for="letter-duration-range">Letter Break Duration</label>
+        <input type="range" id="letter-duration-range" min="0" max="10" step="0.25">
+        <label for="word-duration-range">Word Break Duration</label>
+        <input type="range" id="word-duration-range" min="0" max="10" step="0.25">
+        <section>
+            <h2>dit</h2>
+            <label for="dit-duration-range">Duration</label>
+            <input type="range" id="dit-duration-range" min="0.01" max="1" step="0.01">
+            <label for="dit-frequency-range">Frequency</label>
+            <input type="range" id="dit-frequency-range" min="100" max="13000" step="1">
+            <label for="dit-waveform-select">Waveform</label>
+            <select id="dit-waveform-select">
+                <option>sine</option>
+                <option>square</option>
+                <option>sawtooth</option>
+                <option>triangle</option>
+            </select>
+        </section>
+        <section>
+            <h2>dah</h2>
+            <label for="dah-duration-range">Duration</label>
+            <input type="range" id="dah-duration-range" min="0.01" max="1" step="0.01">
+            <label for="dah-frequency-range">Frequency</label>
+            <input type="range" id="dah-frequency-range" min="100" max="13000" step="1">
+            <label for="dah-waveform-select">Waveform</label>
+            <select id="dah-waveform-select">
+                <option>sine</option>
+                <option>square</option>
+                <option>sawtooth</option>
+                <option>triangle</option>
+            </select>
+        </section>
+    </section>
+</body>
+
+</html>

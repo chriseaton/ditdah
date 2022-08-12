@@ -1,0 +1,18 @@
+:root {
+    --primary-color: #547F9C;
+    --secondary-color: #F0F9FF;
+    --tertiary-color: #C4DAE9;
+    --complementary-primary-color: #9C8564;
+    --complementary-secondary-color: #E8D9C3;
+}
+
+body {
+    padding: 0;
+    margin: 0;
+    font: normal normal 16px 'Arial, sans-serif';
+    background: linear-gradient(170deg, var(--secondary-color) 75%, var(--tertiary-color));
+}
+
+#spectrolizer-canvas {
+    width: 100%;
+}
