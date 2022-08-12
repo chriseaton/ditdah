@@ -36,8 +36,8 @@ class DitDah {
         this.settings = {
             spectrolizer: {
                 data: new Uint8Array(this.analyser.frequencyBinCount),
-                width: 1024,
-                height: 640
+                width: window.innerWidth,
+                height: window.innerHeight
             },
             gain: 1,
             pan: 0,
@@ -77,19 +77,19 @@ class DitDah {
         window.dit = this.dit.bind(this);
         window.dah = this.dah.bind(this);
     }
-    
+
     initAudio() {
         this.analyser.getByteTimeDomainData(this.settings.spectrolizer.data);
         this.volume
             .connect(this.panner)
             .connect(this.analyser)
             .connect(this.audioContext.destination);
-            this.controls.ditDurationRange.value = this.settings.dit.duration;
-            this.controls.ditFrequencyRange.value = this.settings.dit.frequency;
-            this.controls.ditWaveformSelect.value = this.settings.dit.waveform;
-            this.controls.dahDurationRange.value = this.settings.dah.duration;
-            this.controls.dahFrequencyRange.value = this.settings.dah.frequency;
-            this.controls.dahWaveformSelect.value = this.settings.dah.waveform;
+        this.controls.ditDurationRange.value = this.settings.dit.duration;
+        this.controls.ditFrequencyRange.value = this.settings.dit.frequency;
+        this.controls.ditWaveformSelect.value = this.settings.dit.waveform;
+        this.controls.dahDurationRange.value = this.settings.dah.duration;
+        this.controls.dahFrequencyRange.value = this.settings.dah.frequency;
+        this.controls.dahWaveformSelect.value = this.settings.dah.waveform;
     }
 
     initSpectrolizer() {
@@ -97,6 +97,7 @@ class DitDah {
         this.controls.spectrolizerCanvas.height = this.settings.spectrolizer.height;
         this.spectrolizerContext = this.controls.spectrolizerCanvas.getContext('2d', { alpha: false });
         this.spectrolizerContext.imageSmoothingEnabled = true;
+        this.spectrolizerContext.translate(0.5, 0.5);
         this.draw();
     }
 
@@ -107,6 +108,7 @@ class DitDah {
         //actions
         this.controls.ditButton.addEventListener('click', () => this.dit(), false);
         this.controls.dahButton.addEventListener('click', () => this.dah(), false);
+        window.addEventListener('resize', () => this.resize(), false);
         //settings
         this.controls.volumeRange.addEventListener('input', (e) => this.changeSetting('gain', parseFloat(e.target.value)), false);
         this.controls.pannerRange.addEventListener('input', (e) => this.changeSetting('pan', parseFloat(e.target.value)), false);
@@ -120,6 +122,13 @@ class DitDah {
         this.controls.dahWaveformSelect.addEventListener('change', (e) => this.changeSetting('dah.waveform', e.target.value), false);
     }
 
+    resize() {
+        this.settings.spectrolizer.width = window.innerWidth;
+        this.settings.spectrolizer.height = window.innerHeight;
+        this.controls.spectrolizerCanvas.width = window.innerWidth;
+        this.controls.spectrolizerCanvas.height = window.innerHeight;
+    }
+
     /**
      * Update a settings value and trigger an update to audio.
      * @param {String} key 
@@ -131,7 +140,7 @@ class DitDah {
         for (let i = 0; i < keySegments.length; i++) {
             if (i === keySegments.length - 1) {
                 setting[keySegments[i]] = value;
-                console.log('set', value);
+                console.log(`set ${key} to `, value);
             } else {
                 setting = setting[keySegments[i]];
             }
@@ -148,13 +157,17 @@ class DitDah {
     }
 
     dit() {
-        let { duration, frequency, waveform } =  this.settings.dit;
+        let { duration, frequency, waveform } = this.settings.dit;
         this.tone(duration, frequency, waveform);
     }
 
     dah() {
-        let { duration, frequency, waveform } =  this.settings.dah;
+        let { duration, frequency, waveform } = this.settings.dah;
         this.tone(duration, frequency, waveform);
+    }
+
+    keytone(up) {
+        //TODO
     }
 
     /**
@@ -178,27 +191,44 @@ class DitDah {
         g.gain.linearRampToValueAtTime(0, now + duration);
     }
 
-    resize() {
-
-    }
-
     draw() {
         requestAnimationFrame(this.draw.bind(this));
         this.analyser.getByteTimeDomainData(this.settings.spectrolizer.data);
-        let width = this.settings.spectrolizer.width;
-        let height = this.settings.spectrolizer.height;
         let context = this.spectrolizerContext;
+        let state = {
+            width: this.settings.spectrolizer.width,
+            height: this.settings.spectrolizer.height,
+        };
         //draw
-        context.fillStyle = "rgb(200, 200, 200)";
-        context.fillRect(0, 0, width, height);
-        context.lineWidth = 2;
-        context.strokeStyle = "rgb(0, 0, 0)";
+        context.fillStyle = '#A5D1EB';
+        context.fillRect(0, 0, state.width, state.height);
+        for (let x = 0; x < state.width; x += 32) {
+            this.drawLine(context, state, 1, '#73AB8D', x, 0, x, state.height);
+        }
+        for (let y = 0; y < state.height; y += 32) {
+            this.drawLine(context, state, 1, '#73AB8D', 0, y, state.width, y);
+        }
+        this.drawFreq(context, state, 4, '#9AA1A6');
+    }
+
+    drawLine(context, state, width, color, x, y, x2, y2) {
+        context.lineWidth = width;
+        context.strokeStyle = color;
         context.beginPath();
-        const sliceWidth = width * 1.0 / this.analyser.frequencyBinCount;
+        context.moveTo(x, y);
+        context.lineTo(x2, y2);
+        context.stroke();
+    }
+
+    drawFreq(context, state, width, color) {
+        context.lineWidth = width;
+        context.strokeStyle = color;
+        context.beginPath();
+        const sliceWidth = state.width * 1.0 / this.analyser.frequencyBinCount;
         let x = 0;
         for (let i = 0; i < this.analyser.frequencyBinCount; i++) {
             const v = this.settings.spectrolizer.data[i] / 128.0;
-            const y = v * height / 2;
+            const y = v * state.height / 2;
             if (i === 0) {
                 context.moveTo(x, y);
             } else {
@@ -206,7 +236,7 @@ class DitDah {
             }
             x += sliceWidth;
         }
-        context.lineTo(this.settings.spectrolizer.width, this.settings.spectrolizer.height / 2);
+        context.lineTo(state.width, state.height / 2);
         context.stroke();
     }
 
