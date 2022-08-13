@@ -8,22 +8,42 @@ class DitDah {
          */
         this.audioContext = new AudioContext();
 
-        /**
-         * @type {GainNode}
-         */
-        this.volume = new GainNode(this.audioContext);
-
-        /**
-         * @type {StereoPannerNode}
-         */
-        this.panner = new StereoPannerNode(this.audioContext);
-
-        /**
-         * @type {AnalyserNode}
-         */
-        this.analyser = new AnalyserNode(this.audioContext, {
-            fftSize: 2048
-        });
+        this.nodes = {
+            /**
+             * @type {GainNode}
+             */
+            volume: new GainNode(this.audioContext),
+            /**
+             * @type {StereoPannerNode}
+             */
+            panner: new StereoPannerNode(this.audioContext),
+            /**
+             * @type {AnalyserNode}
+             */
+            analyser: new AnalyserNode(this.audioContext, {
+                fftSize: 2048
+            }),
+            keytone: {
+                /**
+                 * @type {String}
+                 */
+                status: 'off',
+                /**
+                 * @type {OscillatorNode}
+                 */
+                oscillator: null,
+                /**
+                 * @type {GainNode}
+                 */
+                gain: null
+            },
+            static: {
+                //static noise
+            },
+            pink: {
+                //pink noise
+            }
+        }
 
         /**
          * @type {CanvasRenderingContext2D}
@@ -34,8 +54,12 @@ class DitDah {
          * Active settings to apply for nodes.
          */
         this.settings = {
+            link: true,
+            ridiculous: false,
+            letterBreak: 0.2,
+            wordBreak: 1,
             spectrolizer: {
-                data: new Uint8Array(this.analyser.frequencyBinCount),
+                data: new Uint8Array(this.nodes.analyser.frequencyBinCount),
                 width: window.innerWidth,
                 height: window.innerHeight
             },
@@ -54,35 +78,40 @@ class DitDah {
         };
 
         this.controls = {
-            ditButton: document.querySelector('#dit-button'),
-            dahButton: document.querySelector('#dah-button'),
-            spectrolizerCanvas: document.getElementById('spectrolizer-canvas'),
+            ditButton: document.querySelector('#dit'),
+            dahButton: document.querySelector('#dah'),
+            spectrolizerCanvas: document.querySelector('#spectrolizer'),
             //settings
-            volumeRange: document.querySelector('#volume-range'),
-            pannerRange: document.querySelector('#panner-range'),
+            volumeRange: document.querySelector('#volume'),
+            pannerRange: document.querySelector('#panner'),
+            letterBreakRange: document.querySelector('#letter-break'),
+            wordBreakRange: document.querySelector('#word-break'),
+            linkDitDahCheckbox: document.querySelector('#link-ditdah'),
+            ridiculousCheckbox: document.querySelector('#ridiculous-hz'),
             //dit settings
-            ditFrequencyRange: document.querySelector('#dit-frequency-range'),
-            ditWaveformSelect: document.querySelector('#dit-waveform-select'),
-            ditDurationRange: document.querySelector('#dit-duration-range'),
+            ditFrequencyRange: document.querySelector('#dit-frequency'),
+            ditWaveformSelect: document.querySelector('#dit-waveform'),
+            ditDurationRange: document.querySelector('#dit-duration'),
             //dah settings
-            dahFrequencyRange: document.querySelector('#dah-frequency-range'),
-            dahWaveformSelect: document.querySelector('#dah-waveform-select'),
-            dahDurationRange: document.querySelector('#dah-duration-range'),
+            dahFrequencyRange: document.querySelector('#dah-frequency'),
+            dahWaveformSelect: document.querySelector('#dah-waveform'),
+            dahDurationRange: document.querySelector('#dah-duration'),
         };
 
         //init
         this.initAudio();
         this.initSpectrolizer();
         this.listen();
+        this.update();
         window.dit = this.dit.bind(this);
         window.dah = this.dah.bind(this);
     }
 
     initAudio() {
-        this.analyser.getByteTimeDomainData(this.settings.spectrolizer.data);
-        this.volume
-            .connect(this.panner)
-            .connect(this.analyser)
+        this.nodes.analyser.getByteTimeDomainData(this.settings.spectrolizer.data);
+        this.nodes.volume
+            .connect(this.nodes.panner)
+            .connect(this.nodes.analyser)
             .connect(this.audioContext.destination);
         this.controls.ditDurationRange.value = this.settings.dit.duration;
         this.controls.ditFrequencyRange.value = this.settings.dit.frequency;
@@ -90,6 +119,8 @@ class DitDah {
         this.controls.dahDurationRange.value = this.settings.dah.duration;
         this.controls.dahFrequencyRange.value = this.settings.dah.frequency;
         this.controls.dahWaveformSelect.value = this.settings.dah.waveform;
+        this.controls.linkDitDahCheckbox.checked = this.settings.link;
+        this.controls.ridiculousCheckbox.checked = this.settings.ridiculous;
     }
 
     initSpectrolizer() {
@@ -109,6 +140,10 @@ class DitDah {
         this.controls.ditButton.addEventListener('click', () => this.dit(), false);
         this.controls.dahButton.addEventListener('click', () => this.dah(), false);
         window.addEventListener('resize', () => this.resize(), false);
+        window.addEventListener('keydown', (e) => this.keytoneToggle('keydown', e), false);
+        window.addEventListener('keyup', (e) => this.keytoneToggle('keyup', e), false);
+        this.controls.linkDitDahCheckbox.addEventListener('change', (e) => this.changeSetting('link', e.target.checked), false);
+        this.controls.ridiculousCheckbox.addEventListener('change', (e) => this.changeSetting('ridiculous', e.target.checked), false);
         //settings
         this.controls.volumeRange.addEventListener('input', (e) => this.changeSetting('gain', parseFloat(e.target.value)), false);
         this.controls.pannerRange.addEventListener('input', (e) => this.changeSetting('pan', parseFloat(e.target.value)), false);
@@ -122,11 +157,23 @@ class DitDah {
         this.controls.dahWaveformSelect.addEventListener('change', (e) => this.changeSetting('dah.waveform', e.target.value), false);
     }
 
+    /**
+     * Handles when the window is resized and adjusts the UI to fit.
+     */
     resize() {
         this.settings.spectrolizer.width = window.innerWidth;
         this.settings.spectrolizer.height = window.innerHeight;
         this.controls.spectrolizerCanvas.width = window.innerWidth;
         this.controls.spectrolizerCanvas.height = window.innerHeight;
+    }
+
+    /**
+     * Handles a keytone toggling event.
+     */
+    keytoneToggle(eventName, e) {
+        if (!e.shiftKey && !e.ctrlKey && !e.altKey && e.key === 'd') {
+            this.keytone(eventName === 'keydown');
+        }
     }
 
     /**
@@ -140,20 +187,54 @@ class DitDah {
         for (let i = 0; i < keySegments.length; i++) {
             if (i === keySegments.length - 1) {
                 setting[keySegments[i]] = value;
-                console.log(`set ${key} to `, value);
             } else {
                 setting = setting[keySegments[i]];
             }
         }
-        this.updateNodes();
+        this.update();
     }
 
     /**
-     * Update the active audio nodes.
+     * Update the active audio nodes and controls based on settings changes.
      */
-    updateNodes() {
-        this.volume.gain.value = this.settings.gain;
-        this.panner.pan.value = this.settings.pan;
+    update() {
+        this.nodes.volume.gain.value = this.settings.gain;
+        this.nodes.panner.pan.value = this.settings.pan;
+        if (this.settings.link) {
+            this.settings.dah.duration = this.controls.ditDurationRange.value * 3;
+            this.settings.dah.frequency = this.controls.ditFrequencyRange.value;
+            this.settings.dah.waveform = this.controls.ditWaveformSelect.value;
+            this.controls.dahDurationRange.value = this.settings.dah.duration;
+            this.controls.dahFrequencyRange.value = this.settings.dah.frequency;
+            this.controls.dahWaveformSelect.value = this.settings.dah.waveform;
+        }
+        if (this.settings.ridiculous) {
+            this.controls.ditFrequencyRange.min = 30;
+            this.controls.ditFrequencyRange.max = 15000;
+            this.controls.dahFrequencyRange.min = 30;
+            this.controls.dahFrequencyRange.max = 15000;
+        } else {
+            this.controls.ditFrequencyRange.min = 100;
+            this.controls.dahFrequencyRange.min = 100;
+            this.controls.ditFrequencyRange.max = 4000;
+            this.controls.dahFrequencyRange.max = 4000;
+            this.settings.dit.frequency = Math.min(Math.max(this.settings.dit.frequency, 100), 4000);
+            this.settings.dah.frequency = Math.min(Math.max(this.settings.dah.frequency, 100), 4000);
+        }
+        if (this.nodes.keytone.status === 'on') {
+            this.nodes.keytone.oscillator.frequency.value = this.settings.dit.frequency;
+            this.nodes.keytone.oscillator.type = this.settings.dit.waveform;
+        }
+        //update labels
+        document.querySelector('label[for="volume"]').innerHTML = `Volume, ${(this.settings.gain * 100).toFixed(0)}%`
+        if (this.settings.pan < 0) {
+            document.querySelector('label[for="panner"]').innerHTML = `Panner, Left ${(this.settings.pan * -100).toFixed(0)}%`
+        } else if (this.settings.pan > 0) {
+            document.querySelector('label[for="panner"]').innerHTML = `Panner, Right ${(this.settings.pan * 100).toFixed(0)}%`
+        } else {
+            document.querySelector('label[for="panner"]').innerHTML = `Panner, Balanced`
+        }
+        document.querySelector('label[for="letter-duration"]').innerHTML = `Letter Break, ${(this.settings.gain * 100).toFixed(0)}%`
     }
 
     dit() {
@@ -166,8 +247,31 @@ class DitDah {
         this.tone(duration, frequency, waveform);
     }
 
-    keytone(up) {
-        //TODO
+    keytone(on) {
+        if (on && this.nodes.keytone.status === 'off') {
+            //start the keytone
+            let s = new OscillatorNode(this.audioContext, {
+                frequency: this.settings.dit.frequency,
+                type: this.settings.dit.waveform
+            });
+            let g = new GainNode(this.audioContext);
+            this.nodes.keytone.oscillator = s;
+            this.nodes.keytone.gain = g;
+            //connect and start
+            s.connect(g).connect(this.nodes.volume);
+            s.start();
+            this.nodes.keytone.status = 'on';
+        } else if (!on && this.nodes.keytone.status === 'on') {
+            //fadeout and stop the keytone.
+            let now = this.audioContext.currentTime;
+            let g = this.nodes.keytone.gain;
+            g.gain.linearRampToValueAtTime(0, now + 0.05);
+            this.nodes.keytone.oscillator.stop(now + 0.05);
+            this.nodes.keytone.status = 'queued';
+            setTimeout(() => {
+                this.nodes.keytone.status = 'off';
+            }, 0.05);
+        }
     }
 
     /**
@@ -182,7 +286,7 @@ class DitDah {
             type: waveform
         });
         let g = new GainNode(this.audioContext);
-        s.connect(g).connect(this.volume);
+        s.connect(g).connect(this.nodes.volume);
         let now = this.audioContext.currentTime;
         g.gain.setValueAtTime(1, now);
         s.start();
@@ -193,7 +297,7 @@ class DitDah {
 
     draw() {
         requestAnimationFrame(this.draw.bind(this));
-        this.analyser.getByteTimeDomainData(this.settings.spectrolizer.data);
+        this.nodes.analyser.getByteTimeDomainData(this.settings.spectrolizer.data);
         let context = this.spectrolizerContext;
         let state = {
             width: this.settings.spectrolizer.width,
@@ -224,9 +328,9 @@ class DitDah {
         context.lineWidth = width;
         context.strokeStyle = color;
         context.beginPath();
-        const sliceWidth = state.width * 1.0 / this.analyser.frequencyBinCount;
+        const sliceWidth = state.width * 1.0 / this.nodes.analyser.frequencyBinCount;
         let x = 0;
-        for (let i = 0; i < this.analyser.frequencyBinCount; i++) {
+        for (let i = 0; i < this.nodes.analyser.frequencyBinCount; i++) {
             const v = this.settings.spectrolizer.data[i] / 128.0;
             const y = v * state.height / 2;
             if (i === 0) {
